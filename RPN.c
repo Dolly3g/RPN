@@ -81,13 +81,25 @@ int isOperator(char ch){
 	return 0;
 }
 
+int isDigit(char ch){
+	if(ch >=48 && ch <=57)
+		return 1;
+	return 0;
+}
+
 int evaluate(String expr){
-	Stack operands = giveStackOfOperands(expr);
+	Stack operands = createStack();
 	int a,b,*result;
 	int i,length = strlen(expr);
+
 	for(i=0 ; i<length && operands.count>=2 ; i++){
+		if(isDigit(expr[i])){
+			push(&operands,&expr[i]);
+			continue;
+		}
 		if(!isOperator(expr[i]))
 			continue;
+			
 		a = *(int*)pop(&operands);
 		b = *(int*)pop(&operands);
 		result = malloc(sizeof(int));
