@@ -5,7 +5,7 @@
 
 void printStack(Stack s){
 	Node* walker = s.top;
-	printf("-----------------------------Stack-----------------------\n");
+	printf("-----------------Stack---------------\n");
 	printf("Top=%p\n",s.top );
 	printf("Count=%d\n",s.count );
 	while(walker != 0){
@@ -40,41 +40,6 @@ char* concat(char* string, char ch){
 	return new_string;	
 }
 
-Stack giveStackOfOperands(String expr){
-	int i,j;
-	int* token;
-	char* num;
-	int length = strlen(expr);
-	Stack s = createStack();
-	num = calloc(1,sizeof(char)*10);
-
-	for (i=0 ; i<length ; i++){
-
-		if(isOperator(expr[i])){
-			if(num[0] != 0){
-				token = malloc(sizeof(int));
-				*token = atoi(num);
-				push(&s,token);
-				num = calloc(1,sizeof(char)*10);
-			}
-			break;
-		}
-
-		token = malloc(sizeof(int));
-		
-		if(expr[i] != ' ' && expr[i] != 0){
-			num = concat(num,expr[i]);
-			continue;
-		}
-		else{
-			*token = atoi(num);
-			push(&s,token);
-			num = calloc(1,sizeof(char)*10);
-		}		
-	}
-	return s;
-}
-
 int isOperator(char ch){
 	if(ch == '+' || ch == '-' || ch == '*' || ch == '/')
 		return 1;
@@ -87,24 +52,94 @@ int isDigit(char ch){
 	return 0;
 }
 
-int evaluate(String expr){
-	Stack operands = createStack();
-	int a,b,*result;
-	int i,length = strlen(expr);
-
-	for(i=0 ; i<length && operands.count>=2 ; i++){
-		if(isDigit(expr[i])){
-			push(&operands,&expr[i]);
-			continue;
-		}
-		if(!isOperator(expr[i]))
-			continue;
-			
-		a = *(int*)pop(&operands);
-		b = *(int*)pop(&operands);
-		result = malloc(sizeof(int));
-		*result = calculate(a,b,expr[i]);
-		push(&operands,result);
+int createValueFromSubstr(String expr,Token* t){
+	int i,count=0;
+	char* num = malloc( sizeof(char)* (t->end-t->start));
+	for(i=t->start ; i<=t->end ; i++){
+		num[count++] = expr[i];
 	}
-	return *result;
+	return atoi(num);
+}
+
+char getOperatorFromToken(String expr, Token* t){
+	return expr[t->start];
+}
+
+Result evaluate(String expr){
+	Stack operands = createStack();
+	LinkedList* tokens = makeTokenList(expr);
+	Node* walker = tokens->head;
+	Token *token;
+	int a,b,*data,*res;
+	char operator;
+	Result result={0,0};
+
+	while(walker != 0){
+		token = (Token*)walker->data;
+		if(token->id == 1){
+			data = malloc(sizeof(int));
+			*data = createValueFromSubstr(expr,token);
+			push(&operands,data);
+		}
+		if(token->id == 2){
+			if(operands.count <2){
+				result.error =1;
+				return result;
+			}
+			res = malloc(sizeof(int));
+			a = *(int*)pop(&operands);
+			b = *(int*)pop(&operands);
+			operator = getOperatorFromToken(expr,token);
+			*res = calculate(a,b,operator);
+			push(&operands,res);
+		}
+		walker = walker->next;
+	}
+
+	operands.count > 1 && (result.error = 1);
+	result.status=*res;
+	return result;
+}
+
+Token* createToken(int id,int start,int end){
+	Token* t;
+	t = malloc(sizeof(Token));
+	t->id = id;
+	t->start = start;
+	t->end = end;
+	return t;
+}
+
+void insertToken(Token* token,Node** node,LinkedList* list){
+	node = malloc(sizeof(Node*));
+	*node = create_node(token);
+	add_to_list(list,*node);
+}
+
+LinkedList* makeTokenList(String expr){
+	int i,length,start;
+	LinkedList* list = calloc(1,sizeof(LinkedList));
+	Node** node;
+	Token* token;
+
+	for(i=0,length= strlen(expr) ; i<length ; i++){
+		if(isOperator(expr[i])){
+			token = createToken(2,i,i);
+		}
+
+		else if(isDigit(expr[i])){
+			start = i;
+			while(isDigit(expr[i+1])){
+				i++;
+			}
+			token = createToken(1,start,i);
+		}
+
+		else
+			token = createToken(3,i,i);
+
+		insertToken(token,node,list);
+	}
+
+	return list;
 }
