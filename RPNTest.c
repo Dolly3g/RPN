@@ -82,13 +82,13 @@ void test_evaluate_returns_the_result_of_postfix_operation_when_numbers_are_betw
 	assertEqual(evaluate("2 2 - 2 2 2 * 2 - - -").error,0);
 }
 
-void test_evaluate_returns_error_for_too_few_operands_and_too_many_operators (){
+void test_evaluate_returns_error_for_too_few_operands (){
 	assertEqual(evaluate("2 +").error,1);
 	assertEqual(evaluate("2 5 6+ - /").error,1);
 	assertEqual(evaluate("2 5 6+ - / * ").error,1);
 }
 
-void test_evaluate_returns_error_for_too_many_operands_and_too_few_operators (){
-	assertEqual(evaluate("2 1 6+").error,1);
-	assertEqual(evaluate("2 1 * 6+-").error,1);
+void test_evaluate_returns_error_for_too_few_operators (){
+	assertEqual(evaluate("2 1 6+").error,-1);
+	assertEqual(evaluate("2 1 6 7 6 - + /").error,-1);
 }

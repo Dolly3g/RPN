@@ -65,38 +65,47 @@ char getOperatorFromToken(String expr, Token* t){
 	return expr[t->start];
 }
 
+void onOperand(String expr,Token* token, Stack* operands){
+	int* data;
+	data = malloc(sizeof(int));
+	*data = createValueFromSubstr(expr,token);
+	push(operands,data);	
+}
+
+int onOperator(String expr,Stack* operands,Token* token){
+	int a,b;
+	char operator;
+	a = *(int*)pop(operands);
+	b = *(int*)pop(operands);
+	operator = getOperatorFromToken(expr,token);
+	return calculate(a,b,operator);
+}
+
 Result evaluate(String expr){
 	Stack operands = createStack();
 	LinkedList* tokens = makeTokenList(expr);
 	Node* walker = tokens->head;
 	Token *token;
-	int a,b,*data,*res;
+	int a,b,*res;
 	char operator;
 	Result result={0,0};
 
 	while(walker != 0){
 		token = (Token*)walker->data;
-		if(token->id == 1){
-			data = malloc(sizeof(int));
-			*data = createValueFromSubstr(expr,token);
-			push(&operands,data);
-		}
+		if(token->id == 1) onOperand(expr,token,&operands);
 		if(token->id == 2){
 			if(operands.count <2){
 				result.error =1;
 				return result;
 			}
 			res = malloc(sizeof(int));
-			a = *(int*)pop(&operands);
-			b = *(int*)pop(&operands);
-			operator = getOperatorFromToken(expr,token);
-			*res = calculate(a,b,operator);
+			*res = onOperator(expr,&operands,token);
 			push(&operands,res);
 		}
 		walker = walker->next;
 	}
 
-	operands.count > 1 && (result.error = 1);
+	operands.count > 1 && (result.error = -1);
 	result.status=*res;
 	return result;
 }
@@ -117,21 +126,21 @@ void insertToken(Token* token,Node** node,LinkedList* list){
 }
 
 LinkedList* makeTokenList(String expr){
-	int i,length,start;
+	int i,length,start,id;
 	LinkedList* list = calloc(1,sizeof(LinkedList));
 	Node** node;
 	Token* token;
 
 	for(i=0,length= strlen(expr) ; i<length ; i++){
-		if(isOperator(expr[i])){
+
+		if(isOperator(expr[i]))
 			token = createToken(2,i,i);
-		}
 
 		else if(isDigit(expr[i])){
 			start = i;
-			while(isDigit(expr[i+1])){
+			while(isDigit(expr[i+1]))
 				i++;
-			}
+
 			token = createToken(1,start,i);
 		}
 
@@ -140,6 +149,5 @@ LinkedList* makeTokenList(String expr){
 
 		insertToken(token,node,list);
 	}
-
 	return list;
 }

@@ -23,3 +23,4 @@ Token* createToken(int,int,int);
 LinkedList* makeTokenList(String);
 int createValueFromSubstr(String,Token*);
 char getOperatorFromToken(String,Token*);
+char * infixToPostfix(char * expression);
