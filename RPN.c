@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include "RPN.h"
 
+
 void printStack(Stack s){
 	Node* walker = s.top;
 	printf("-----------------Stack---------------\n");
@@ -150,4 +151,40 @@ LinkedList* makeTokenList(String expr){
 		insertToken(token,node,list);
 	}
 	return list;
+}
+
+String infixToPostfix(String expr){
+	Queue operands = createQueue();
+	Stack operators = createStack();
+	int i,length = strlen(expr);
+	int* operand;
+	char *operator,digit;
+	String result = malloc(sizeof(char)*length+1);
+	for(i=0 ; i<length ; i++){
+		if(isDigit(expr[i])){
+			operand = malloc(sizeof(int));
+			*operand = atoi(&expr[i]);
+			enqueue(operands,operand);
+		}
+
+		if(isOperator(expr[i])){
+			operator = malloc(sizeof(char));
+			*operator = expr[i];
+			push(&operators,operator);
+		}
+	}
+
+	i=-1;
+	while(operands.list->count !=0){
+		result[++i] = (int)'0'+*(int*)dequeue(operands);
+		result[++i] = ' ';
+	}
+
+	while(operators.count !=0){
+		result[++i] = *(char*)pop(&operators);
+		if(operators.count >1)
+			result[++i] = ' ';
+	}
+
+	return result;
 }

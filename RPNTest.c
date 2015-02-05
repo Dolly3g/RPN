@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include "RPN.h"
 #include "expr_assert.h"
 
@@ -91,4 +92,12 @@ void test_evaluate_returns_error_for_too_few_operands (){
 void test_evaluate_returns_error_for_too_few_operators (){
 	assertEqual(evaluate("2 1 6+").error,-1);
 	assertEqual(evaluate("2 1 6 7 6 - + /").error,-1);
+}
+
+void test_infixToPostfix_returns_the_postfix_of_the_prefix_operation(){
+	assertEqual(strcmp(infixToPostfix("2 + 3"),"2 3 +"),0);
+}
+
+void test_infixToPostfix_returns_the_postfix_of_the_prefix_operation_for_big_expressions(){
+	assertEqual(strcmp(infixToPostfix("2 + 3"),"2 3 +"),0);
 }

@@ -1,4 +1,6 @@
-#include "../StackADT/stack.h"
+#include "stack.h"
+#include "queue.h"
+
 typedef char* String;
 typedef struct token Token;
 typedef struct result Result;
