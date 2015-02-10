@@ -11,3 +11,4 @@ Stack createStack(void);
 int push(Stack*,void*);
 void* pop(Stack*);
 int new_push(Stack,void*);
+void printStack(Stack);

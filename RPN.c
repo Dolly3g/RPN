@@ -3,18 +3,6 @@
 #include <stdlib.h>
 #include "RPN.h"
 
-
-void printStack(Stack s){
-	Node* walker = s.top;
-	printf("-----------------Stack---------------\n");
-	printf("Top=%p\n",s.top );
-	printf("Count=%d\n",s.count );
-	while(walker != 0){
-		printf("Data = %d\n",*(int*)walker->data );
-		walker = walker -> next;
-	}
-}
-
 int calculate(int a, int b, char operator){
 	switch(operator){
 		case '+' : return b + a;
@@ -25,25 +13,13 @@ int calculate(int a, int b, char operator){
 	}
 }
 
-char* concat(char* string, char ch){
-	int i,size = sizeof(char)*(strlen(string)+2);
-	char *new_string = malloc(size);
-	
-	for (i=0 ; i<size; ++i)	{
-		if(string[i] == 0){
-			new_string[i] = ch;
-			break;
-		}
-		new_string[i] = string[i];
-	}
-
-	new_string[i+1] = 0;
-	return new_string;	
-}
-
 int isOperator(char ch){
-	if(ch == '+' || ch == '-' || ch == '*' || ch == '/')
-		return 1;
+	String operators = "+-*/^()";
+	int i,length = strlen(operators);
+	for(i=0 ; i<length ; i++){
+		if(operators[i] == ch)
+			return 1;
+	}
 	return 0;
 }
 
@@ -53,24 +29,20 @@ int isDigit(char ch){
 	return 0;
 }
 
-int createValueFromSubstr(String expr,Token* t){
+int createValueFromIndexes(String expr,Token* t){
 	int i,count=0;
-	char* num = malloc( sizeof(char)* (t->end-t->start));
+	char* num = malloc( sizeof(char)* (t->end - t->start));
 	for(i=t->start ; i<=t->end ; i++){
 		num[count++] = expr[i];
 	}
 	return atoi(num);
 }
 
-char getOperatorFromToken(String expr, Token* t){
-	return expr[t->start];
-}
-
 void onOperand(String expr,Token* token, Stack* operands){
 	int* data;
 	data = malloc(sizeof(int));
-	*data = createValueFromSubstr(expr,token);
-	push(operands,data);	
+	*data = createValueFromIndexes(expr,token);
+	push(operands,data);
 }
 
 int onOperator(String expr,Stack* operands,Token* token){
@@ -78,8 +50,22 @@ int onOperator(String expr,Stack* operands,Token* token){
 	char operator;
 	a = *(int*)pop(operands);
 	b = *(int*)pop(operands);
-	operator = getOperatorFromToken(expr,token);
+	operator = expr[token->start];
 	return calculate(a,b,operator);
+}
+
+Result forOperator(Stack* operands, String expr,Token* token){
+	Result result={0,0};
+	int* res;
+	if(operands->count <2){
+		result.error =1;
+		return result;
+	}
+	res = malloc(sizeof(int));
+	*res = onOperator(expr,operands,token);
+	push(operands,res);
+	result.status = *res;
+	return result;	
 }
 
 Result evaluate(String expr){
@@ -89,25 +75,17 @@ Result evaluate(String expr){
 	Token *token;
 	int a,b,*res;
 	char operator;
-	Result result={0,0};
+	Result result;
 
 	while(walker != 0){
 		token = (Token*)walker->data;
 		if(token->id == 1) onOperand(expr,token,&operands);
-		if(token->id == 2){
-			if(operands.count <2){
-				result.error =1;
-				return result;
-			}
-			res = malloc(sizeof(int));
-			*res = onOperator(expr,&operands,token);
-			push(&operands,res);
-		}
+		if(token->id == 2) result = forOperator(&operands,expr,token);
+		if(result.error==1) return result;
 		walker = walker->next;
 	}
 
 	operands.count > 1 && (result.error = -1);
-	result.status=*res;
 	return result;
 }
 
@@ -127,64 +105,120 @@ void insertToken(Token* token,Node** node,LinkedList* list){
 }
 
 LinkedList* makeTokenList(String expr){
-	int i,length,start,id;
+	int i, start, length=strlen(expr);
 	LinkedList* list = calloc(1,sizeof(LinkedList));
 	Node** node;
 	Token* token;
 
-	for(i=0,length= strlen(expr) ; i<length ; i++){
+	for(i=0 ; i<length ; i++){
 
-		if(isOperator(expr[i]))
-			token = createToken(2,i,i);
+		if(isOperator(expr[i])) token = createToken(2,i,i);
 
-		else if(isDigit(expr[i])){
-			start = i;
-			while(isDigit(expr[i+1]))
-				i++;
-
+		else if(isDigit(expr[i])) {
+			for(start=i ; isDigit(expr[i+1]) ; i++ ){}
 			token = createToken(1,start,i);
 		}
 
-		else
-			token = createToken(3,i,i);
-
+		else token = createToken(3,i,i);
 		insertToken(token,node,list);
 	}
 	return list;
 }
 
+int indexOfChar (String str, char ch){
+	int i, length = strlen(str);
+	for(i=0 ; i<length ; i++){
+		if(str[i] == ch)
+			return i;
+	}
+	return -1;
+}
+
+int isPrecedenceHigher(char operator, Stack* operators){
+	Operator precedences[] = {{'+',2},{'-',2},{'*',3},{'/',3},{'^',4},{'(',5}};
+	char onTop = *(char*)operators->top->data;
+	int i,length = 6;
+	int p_onTop,p_op;
+
+	for(i=0 ; i<length ; i++){
+		if(precedences[i].op == onTop)
+			p_onTop = precedences[i].precedence;
+		if(precedences[i].op == operator)
+			p_op = precedences[i].precedence;
+	}
+	if(p_op < p_onTop)return -1;
+	if(p_op > p_onTop)return 1;
+	return 0;
+}
+
+/*void performPushOrPop(Stack* operators, char* operator, String output,int count){
+	if(operators->count == 0){
+		push(operators,operator);
+		return;
+	}
+	if(isPrecedenceHigher(*operator,operators)){
+		push(operators,operator);
+		return;
+	}
+	push(operators,operator);
+}
+*/
+int popAllAndDump(Stack* operators, String output, int count){
+	while(operators->count != 0){
+		output[count++] = *(char*)pop(operators);
+		if(operators->count>=1)
+			output[count++] = ' ';
+
+	}
+	return count;
+}
+
+int popAllTillOpeningParenthesis(Stack *operators, String output, int count){
+	while(*(char*)operators->top->data != '('){
+		output[count++] = *(char*)pop(operators);
+		output[count++] = ' ';
+	}
+	pop(operators);
+	return count;
+}
+
 String infixToPostfix(String expr){
-	Queue operands = createQueue();
+	int i,count=0,length = strlen(expr);
 	Stack operators = createStack();
-	int i,length = strlen(expr);
-	int* operand;
-	char *operator,digit;
-	String result = malloc(sizeof(char)*length+1);
+	char *operator;
+	String output = malloc(sizeof(char)*length);
+
 	for(i=0 ; i<length ; i++){
 		if(isDigit(expr[i])){
-			operand = malloc(sizeof(int));
-			*operand = atoi(&expr[i]);
-			enqueue(operands,operand);
+			output[count++] = expr[i];
+			output[count++] = ' ';
+		}
+
+		if(expr[i] ==  ')'){
+			count = popAllTillOpeningParenthesis(&operators,output,count);
+			continue;
 		}
 
 		if(isOperator(expr[i])){
 			operator = malloc(sizeof(char));
 			*operator = expr[i];
-			push(&operators,operator);
+
+			if(operators.count == 0 || isPrecedenceHigher(*operator,&operators) == 1 || *(char*)operators.top->data == '('){
+				push(&operators,operator);
+				continue;
+			}
+			if(isPrecedenceHigher(*operator,&operators) == 0){
+				output[count++] = *(char*)pop(&operators);
+				output[count++] = ' ';
+				push(&operators,operator);
+			}
+			if(isPrecedenceHigher(*operator,&operators) == -1) {
+				count = popAllAndDump(&operators,output,count);
+				output[count++] = ' ';
+				push(&operators,operator);
+			}
 		}
 	}
-
-	i=-1;
-	while(operands.list->count !=0){
-		result[++i] = (int)'0'+*(int*)dequeue(operands);
-		result[++i] = ' ';
-	}
-
-	while(operators.count !=0){
-		result[++i] = *(char*)pop(&operators);
-		if(operators.count >1)
-			result[++i] = ' ';
-	}
-
-	return result;
+	popAllAndDump(&operators,output,count);
+	return output;
 }

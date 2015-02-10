@@ -3,7 +3,7 @@
 typedef struct queue Queue;
 
 struct queue {
-	LinkedList* list;	
+	LinkedList* list;
 };
 
 

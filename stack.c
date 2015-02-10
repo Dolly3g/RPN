@@ -1,4 +1,16 @@
+#include <stdio.h>
 #include "stack.h"
+
+void printStack(Stack s){
+	Node* walker = s.top;
+	printf("-----------------Stack---------------\n");
+	printf("Top=%p\n",s.top );
+	printf("Count=%d\n",s.count );
+	while(walker != 0){
+		printf("Data = %c\n",*(char*)walker->data );
+		walker = walker -> next;
+	}
+}
 
 Stack createStack(void){
 	Stack s={0,0};
