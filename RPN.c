@@ -14,7 +14,7 @@ int calculate(int a, int b, char operator){
 }
 
 int isOperator(char ch){
-	String operators = "+-*/^()";
+	String operators = "+-*/^";
 	int i,length = strlen(operators);
 	for(i=0 ; i<length ; i++){
 		if(operators[i] == ch)
@@ -38,14 +38,7 @@ int createValueFromIndexes(String expr,Token* t){
 	return atoi(num);
 }
 
-void onOperand(String expr,Token* token, Stack* operands){
-	int* data;
-	data = malloc(sizeof(int));
-	*data = createValueFromIndexes(expr,token);
-	push(operands,data);
-}
-
-int onOperator(String expr,Stack* operands,Token* token){
+int popAndCalculate(String expr,Stack* operands,Token* token){
 	int a,b;
 	char operator;
 	a = *(int*)pop(operands);
@@ -54,7 +47,15 @@ int onOperator(String expr,Stack* operands,Token* token){
 	return calculate(a,b,operator);
 }
 
-Result forOperator(Stack* operands, String expr,Token* token){
+Result processOperand(String expr,Token* token, Stack* operands, String output){
+	int* data;
+	data = malloc(sizeof(int));
+	*data = createValueFromIndexes(expr,token);
+	push(operands,data);
+	return (Result){0,0};
+}
+
+Result processOperator(String expr,Token* token, Stack* operands, String output){
 	Result result={0,0};
 	int* res;
 	if(operands->count <2){
@@ -62,25 +63,30 @@ Result forOperator(Stack* operands, String expr,Token* token){
 		return result;
 	}
 	res = malloc(sizeof(int));
-	*res = onOperator(expr,operands,token);
+	*res = popAndCalculate(expr,operands,token);
 	push(operands,res);
 	result.status = *res;
 	return result;	
 }
+Result processExtras(String expr, Token* token, Stack* operands, String output){
+	return (Result){0,0};
+}
+
+Result processParenthesis(String expr, Token* token, Stack* operands, String output){
+	return (Result){0,0};
+}
 
 Result evaluate(String expr){
 	Stack operands = createStack();
-	LinkedList* tokens = makeTokenList(expr);
+	Functions callbacks = {processOperator,processOperand,0,processExtras};
+	LinkedList* tokens = makeTokenList(expr,callbacks);
 	Node* walker = tokens->head;
 	Token *token;
-	int a,b,*res;
-	char operator;
 	Result result;
 
 	while(walker != 0){
 		token = (Token*)walker->data;
-		if(token->id == 1) onOperand(expr,token,&operands);
-		if(token->id == 2) result = forOperator(&operands,expr,token);
+		result = token->function(expr,token,&operands,"");
 		if(result.error==1) return result;
 		walker = walker->next;
 	}
@@ -89,12 +95,13 @@ Result evaluate(String expr){
 	return result;
 }
 
-Token* createToken(int id,int start,int end){
+Token* createToken(int id,int start,int end,callback fn){
 	Token* t;
 	t = malloc(sizeof(Token));
 	t->id = id;
 	t->start = start;
 	t->end = end;
+	t->function = fn;
 	return t;
 }
 
@@ -104,7 +111,11 @@ void insertToken(Token* token,Node** node,LinkedList* list){
 	add_to_list(list,*node);
 }
 
-LinkedList* makeTokenList(String expr){
+int isParenthesis(char ch){
+	return ch == '(' || ch == ')';
+}
+
+LinkedList* makeTokenList(String expr, Functions callbacks){
 	int i, start, length=strlen(expr);
 	LinkedList* list = calloc(1,sizeof(LinkedList));
 	Node** node;
@@ -112,14 +123,20 @@ LinkedList* makeTokenList(String expr){
 
 	for(i=0 ; i<length ; i++){
 
-		if(isOperator(expr[i])) token = createToken(2,i,i);
+		if(isOperator(expr[i]))
+			token = createToken(2,i,i,callbacks.processOperator);
 
 		else if(isDigit(expr[i])) {
-			for(start=i ; isDigit(expr[i+1]) ; i++ ){}
-			token = createToken(1,start,i);
+			for(start=i ; isDigit(expr[i+1]) ; i++){}
+			token = createToken(1,start,i,callbacks.processOperand);
 		}
 
-		else token = createToken(3,i,i);
+		else if(isParenthesis(expr[i]))
+			token = createToken(3,i,i,callbacks.processParenthesis);
+
+		else
+			token = createToken(4,i,i,callbacks.processExtras);
+
 		insertToken(token,node,list);
 	}
 	return list;
@@ -146,23 +163,12 @@ int isPrecedenceHigher(char operator, Stack* operators){
 		if(precedences[i].op == operator)
 			p_op = precedences[i].precedence;
 	}
+
 	if(p_op < p_onTop)return -1;
 	if(p_op > p_onTop)return 1;
 	return 0;
 }
 
-/*void performPushOrPop(Stack* operators, char* operator, String output,int count){
-	if(operators->count == 0){
-		push(operators,operator);
-		return;
-	}
-	if(isPrecedenceHigher(*operator,operators)){
-		push(operators,operator);
-		return;
-	}
-	push(operators,operator);
-}
-*/
 int popAllAndDump(Stack* operators, String output, int count){
 	while(operators->count != 0){
 		output[count++] = *(char*)pop(operators);
@@ -174,51 +180,84 @@ int popAllAndDump(Stack* operators, String output, int count){
 }
 
 int popAllTillOpeningParenthesis(Stack *operators, String output, int count){
-	while(*(char*)operators->top->data != '('){
+	char data = *(char*)operators->top->data;
+	while(data != '('){
 		output[count++] = *(char*)pop(operators);
 		output[count++] = ' ';
+		data = *(char*)operators->top->data;
+
 	}
 	pop(operators);
 	return count;
 }
 
+
+String getStrigifiedDigit(String expr, Token* token){
+	int i,count=0;
+	String number = malloc(sizeof(char)*token->end - token->start);
+	for(i = token->start ; i <= token->end ; i++){
+		number[count++] = expr[i];
+	}
+	return number;
+}
+
+void dumpInOutput(String number, String output){
+	int i,length= strlen(number),count=strlen(output);
+
+	for(i=0 ; i<length ; i++){
+		output[count++] = number[i];
+	}
+}
+
+Result processInfixOperator(String expr, Token* token, Stack* operators, String output){
+	int count = strlen(output);
+	char* operator = malloc(sizeof(char));
+	*operator = expr[token->start];
+
+	if(operators->count > 0 && *(char*)operators->top->data == '('){
+		push(operators,operator);
+		return (Result){0,0};
+	}
+
+	while(operators->count > 0 && isPrecedenceHigher(*operator,operators) != 1){
+		output[count++] = *(char*)pop(operators);
+		output[count++] = ' ';
+	}
+	push(operators,operator);
+	return (Result){0,0};
+}
+
+Result processInfixOperand(String expr, Token* token, Stack* operators, String output){
+	String number = getStrigifiedDigit(expr,token);
+	dumpInOutput(number,output);
+	output[strlen(output)] = ' ';
+	return (Result){0,0};
+}
+
+Result processInfixParenthesis(String expr, Token* token, Stack* operators, String output){
+	char* operator = malloc(sizeof(char));
+	*operator = expr[token->start];
+	*operator == '(' && push(operators,operator);
+	*operator == ')' && popAllTillOpeningParenthesis(operators,output,strlen(output));
+	return (Result){0,0};
+}
+
 String infixToPostfix(String expr){
 	int i,count=0,length = strlen(expr);
 	Stack operators = createStack();
-	char *operator;
-	String output = malloc(sizeof(char)*length);
+	Functions callbacks = {processInfixOperator,processInfixOperand,processInfixParenthesis,processExtras};
+	LinkedList* tokens = makeTokenList(expr,callbacks);
+	char* operator;
+	String output = calloc(tokens->count,sizeof(char));
+	Node* walker = tokens->head;
+	Token* token;
 
-	for(i=0 ; i<length ; i++){
-		if(isDigit(expr[i])){
-			output[count++] = expr[i];
-			output[count++] = ' ';
-		}
-
-		if(expr[i] ==  ')'){
-			count = popAllTillOpeningParenthesis(&operators,output,count);
-			continue;
-		}
-
-		if(isOperator(expr[i])){
-			operator = malloc(sizeof(char));
-			*operator = expr[i];
-
-			if(operators.count == 0 || isPrecedenceHigher(*operator,&operators) == 1 || *(char*)operators.top->data == '('){
-				push(&operators,operator);
-				continue;
-			}
-			if(isPrecedenceHigher(*operator,&operators) == 0){
-				output[count++] = *(char*)pop(&operators);
-				output[count++] = ' ';
-				push(&operators,operator);
-			}
-			if(isPrecedenceHigher(*operator,&operators) == -1) {
-				count = popAllAndDump(&operators,output,count);
-				output[count++] = ' ';
-				push(&operators,operator);
-			}
-		}
+	while(walker != NULL){
+		token = (Token*)walker->data;
+		token->function(expr,token,&operators,output);
+		walker = walker->next;
 	}
-	popAllAndDump(&operators,output,count);
+
+	popAllAndDump(&operators,output,strlen(output));
 	return output;
 }
